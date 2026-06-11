@@ -1,0 +1,70 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend Build
+dist/
+build/
+.next/
+.vite/
+
+# VS Code
+.vscode/
+.history/
+
+# macOS
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Alembic
+alembic/versions/*.pyc
+
+# Docker
+docker-data/
+
+# Cache
+.cache/
+.temp/
+tmp/
+
+# Coverage
+coverage/
+htmlcov/
+
+# Generated files
+*.out
+*.pid
+
+# TypeScript
+*.tsbuildinfo

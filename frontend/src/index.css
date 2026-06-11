@@ -1,0 +1,60 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f0f17;
+  --bg1: #14141f;
+  --bg2: #1a1a2e;
+  --bg3: #212135;
+  --border: #2a2a45;
+  --border2: #353558;
+  --text: #e2e4f0;
+  --text2: #9b9dc4;
+  --text3: #6b6d94;
+  --accent: #7c3aed;
+  --accent2: #6d28d9;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --blue: #3b82f6;
+  --font: 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+html, body, #root { height: 100%; width: 100%; overflow: hidden; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+input, textarea, select {
+  font-family: var(--font);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--text3); }
+select option { background: var(--bg2); }
+textarea { resize: vertical; min-height: 72px; font-family: var(--mono); font-size: 12px; }
+
+button { font-family: var(--font); cursor: pointer; border: none; outline: none; }
+
+.react-flow__background { background: var(--bg); }
+.react-flow__controls { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.react-flow__controls button { background: var(--bg2); color: var(--text2); border: none; border-bottom: 1px solid var(--border); width: 28px; height: 28px; }
+.react-flow__controls button:hover { background: var(--bg3); color: var(--text); }
+.react-flow__controls button:last-child { border-bottom: none; }
+.react-flow__controls svg { fill: currentColor; }
+.react-flow__minimap { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+.react-flow__minimap-mask { fill: var(--bg3); opacity: 0.7; }
+.react-flow__edge-path { stroke-width: 2; }
+.react-flow__handle { width: 10px; height: 10px; border: 2px solid var(--bg2); }
+
+.rf-node-selected .node-card { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(124,58,237,0.3); }
