@@ -14,6 +14,7 @@ from api.routes import oauth, workflows, executions, credentials, webhooks, trig
 from api.routes.auth import router as auth_router
 
 import integrations.core.nodes
+import integrations.ai.handler
 import integrations.slack.handler
 import integrations.google.sheets
 import integrations.google.gmail

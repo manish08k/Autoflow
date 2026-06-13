@@ -206,3 +206,22 @@ def _build_node_input(node_id: str, edges: list[dict], node_results: dict, trigg
             if isinstance(result, dict) and "output" in result:
                 merged.update(result["output"] or {})
     return merged
+
+async def resume_execution(execution_id: str, node_id: str, approval: dict) -> None:
+    import json
+    import redis.asyncio as aioredis
+    from datetime import datetime
+    from core.config import settings
+
+    approval_key = f"approval:{execution_id}:{node_id}"
+    r = aioredis.from_url(settings.REDIS_URL)
+    try:
+        payload = json.dumps({**approval, "approved_at": datetime.utcnow().isoformat()})
+        await r.rpush(approval_key, payload)
+        await r.expire(approval_key, 3600)
+    finally:
+        await r.aclose()
+
+
+class ExecutionContext:
+    pass

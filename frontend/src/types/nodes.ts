@@ -33,9 +33,27 @@ export const PROVIDER_COLORS: Record<string, string> = {
   airtable: '#f82b60',
   hubspot: '#ff7a59',
   http: '#10b981',
+  ai: '#8b5cf6',
 }
 
 export const NODE_CATALOG: NodeDef[] = [
+  // ── AI ───────────────────────────────────────────────────────────────────────
+  { type: 'ai.chat', label: 'AI Chat', category: 'AI', provider: 'ai', color: '#8b5cf6', description: 'Prompt an LLM (Claude / GPT)', configFields: [
+    { key: 'provider', label: 'Provider', type: 'select', options: ['auto', 'anthropic', 'openai'] },
+    { key: 'model', label: 'Model (optional)', type: 'text', placeholder: 'claude-sonnet-4-6' },
+    { key: 'system_prompt', label: 'System Prompt', type: 'textarea' },
+    { key: 'prompt', label: 'Prompt', type: 'textarea', required: true, placeholder: 'Summarize this email: {{body}}' },
+    { key: 'max_tokens', label: 'Max Tokens', type: 'number' },
+    { key: 'temperature', label: 'Temperature', type: 'number' },
+  ] },
+  { type: 'ai.extract', label: 'AI Extract / Classify', category: 'AI', provider: 'ai', color: '#8b5cf6', description: 'Extract structured JSON from text', configFields: [
+    { key: 'provider', label: 'Provider', type: 'select', options: ['auto', 'anthropic', 'openai'] },
+    { key: 'model', label: 'Model (optional)', type: 'text', placeholder: 'claude-sonnet-4-6' },
+    { key: 'text', label: 'Input Text (optional, supports {{field}})', type: 'textarea', placeholder: '{{body}}' },
+    { key: 'schema_description', label: 'Fields to Extract', type: 'textarea', required: true, placeholder: "category: one of 'sales','support','spam'; urgency: 1-5; summary: string" },
+    { key: 'max_tokens', label: 'Max Tokens', type: 'number' },
+  ] },
+
   // ── Triggers ────────────────────────────────────────────────────────────────
   { type: 'trigger.manual', label: 'Manual Trigger', category: 'Triggers', provider: 'core', color: '#6366f1', description: 'Start workflow manually', configFields: [] },
   { type: 'trigger.webhook', label: 'Webhook', category: 'Triggers', provider: 'core', color: '#6366f1', description: 'Trigger on HTTP request', configFields: [{ key: 'method', label: 'Method', type: 'select', options: ['POST', 'GET', 'PUT', 'PATCH'] }] },

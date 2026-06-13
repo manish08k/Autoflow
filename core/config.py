@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
 
+    # ── AI / LLM nodes ───────────────────────────────────────────────
+    ANTHROPIC_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+
     # ── Monitoring ────────────────────────────────────────────────────
     PROMETHEUS_ENABLED: bool = True
     LOG_LEVEL: str = "INFO"
