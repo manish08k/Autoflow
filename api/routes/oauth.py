@@ -8,7 +8,7 @@ from storage.database import get_db
 from storage.models import OAuthCredential
 from oauth.flow import build_authorization_url, handle_callback, revoke_credential
 from oauth.providers import PROVIDERS
-from api.middleware.auth import get_current_user
+from api.middleware.auth import get_current_user, get_current_user_flexible
 
 router = APIRouter()
 
@@ -18,7 +18,7 @@ async def connect_provider(
     provider: str,
     label: str = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(get_current_user_flexible),
 ):
     if provider not in PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
@@ -50,7 +50,7 @@ async def oauth_callback(
     # Redirect to frontend success page
     from core.config import settings
     return RedirectResponse(
-        url=f"{settings.APP_BASE_URL}/credentials?connected={provider}&id={cred.id}"
+        url=f"{settings.frontend_url}/credentials?connected={provider}&id={cred.id}"
     )
 
 
@@ -58,7 +58,7 @@ async def oauth_callback(
 async def oauth_error(provider: str, error: str = Query(...), error_description: str = Query(default="")):
     from core.config import settings
     return RedirectResponse(
-        url=f"{settings.APP_BASE_URL}/credentials?error={error}&provider={provider}"
+        url=f"{settings.frontend_url}/credentials?error={error}&provider={provider}"
     )
 
 

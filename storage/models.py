@@ -37,6 +37,7 @@ class User(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     email = Column(String(255), unique=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    google_id = Column(String(255), unique=True, nullable=True)  # Google "sub" claim, for OAuth sign-in
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=_now)
@@ -82,6 +83,21 @@ class OAuthState(Base):
     user_id = Column(UUID(as_uuid=False), nullable=False)
     provider = Column(String(64), nullable=False)
     label = Column(String(255), nullable=True)
+    extra = Column(JSON, default=dict)                        # pkce_verifier, etc.
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Google Login State  (CSRF protection for the "Sign in with Google" flow,
+#  which happens before the user is authenticated — unlike OAuthState above,
+#  which is for connecting integrations to an already-logged-in user)
+# ─────────────────────────────────────────────────────────────────────────────
+class GoogleLoginState(Base):
+    __tablename__ = "google_login_states"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    state = Column(String(128), unique=True, nullable=False)  # random nonce
     extra = Column(JSON, default=dict)                        # pkce_verifier, etc.
     expires_at = Column(DateTime, nullable=False)
     used = Column(Boolean, default=False)

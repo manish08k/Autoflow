@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     APP_NAME: str = "AutoFlow"
     APP_ENV: str = "production"
     APP_BASE_URL: str = "http://localhost:8000"
+    # Where the SPA is served. In production this is usually the same as
+    # APP_BASE_URL (served behind the same nginx/domain). In local dev the
+    # frontend runs on a separate Vite dev server port.
+    FRONTEND_URL: str = ""
     APP_SECRET_KEY: str = Field(..., min_length=32)
     DEBUG: bool = False
 
@@ -83,6 +87,10 @@ class Settings(BaseSettings):
     @property
     def oauth_redirect_base(self) -> str:
         return f"{self.APP_BASE_URL}/oauth/callback"
+
+    @property
+    def frontend_url(self) -> str:
+        return self.FRONTEND_URL or self.APP_BASE_URL
 
 
 @lru_cache
