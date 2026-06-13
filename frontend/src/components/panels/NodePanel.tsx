@@ -22,60 +22,52 @@ export default function NodePanel({ node, onChange, onDelete, onClose, credentia
     setCfg(node.config ?? {})
     setLabel(node.label ?? def?.label ?? '')
     setCredId(node.credential_id ?? '')
+    setRetryEnabled(!!node.retry)
   }, [node.id])
 
-  const save = () => {
-    onChange({
-      ...node,
-      label,
-      config: cfg,
-      credential_id: credId || undefined,
-      retry: retryEnabled ? { max_attempts: retryAttempts, wait_min: 1, wait_max: 60 } : undefined,
-    })
-  }
+  const needsCred = def && !['core', 'http'].includes(def.provider)
+  const provCreds = credentials.filter(c => c.provider === def?.provider)
 
-  const needsCred = def && !['core', 'http'].includes(def.provider) && !def.type?.startsWith('trigger.')
-  const providerCreds = credentials.filter(c => c.provider === def?.provider)
+  const save = () => onChange({
+    ...node, label, config: cfg,
+    credential_id: credId || undefined,
+    retry: retryEnabled ? { max_attempts: retryAttempts, wait_min: 1, wait_max: 60 } : undefined,
+  })
 
   return (
     <div style={{ width: 300, background: 'var(--bg1)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-      {/* Header */}
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{def?.category}</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{def?.label ?? node.type}</div>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{def?.category ?? 'Node'}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{def?.label ?? node.type}</div>
         </div>
-        <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text3)', padding: 4 }}>
+        <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text3)', border: 'none', cursor: 'pointer', padding: 4 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Label */}
-        <Field label="Node Label">
+      <div style={{ flex: 1, overflow: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Field label="Label">
           <input value={label} onChange={e => setLabel(e.target.value)} placeholder={def?.label} />
         </Field>
 
-        {/* Credential */}
         {needsCred && (
-          <Field label={`${def!.label ?? def!.provider} Account`}>
-            {providerCreds.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--yellow)', padding: '6px 0' }}>
-                No credentials connected.{' '}
-                <a href={`/oauth/connect/${def!.provider}`} target="_blank" rel="noopener" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Connect now</a>
+          <Field label={`${def!.label} Account`}>
+            {provCreds.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--yellow)', lineHeight: 1.5 }}>
+                No {def!.provider} accounts connected.{' '}
+                <a href="#" onClick={e => { e.preventDefault(); window.open(`http://localhost:8000/oauth/connect/${def!.provider}?token=${localStorage.getItem('token')}`) }}
+                  style={{ color: 'var(--accent)' }}>Connect now →</a>
               </div>
             ) : (
               <select value={credId} onChange={e => setCredId(e.target.value)}>
                 <option value="">— Select account —</option>
-                {providerCreds.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.label} ({c.external_account_name || c.provider})</option>
-                ))}
+                {provCreds.map((c: any) => <option key={c.id} value={c.id}>{c.label} ({c.external_account_name || c.provider})</option>)}
               </select>
             )}
           </Field>
         )}
 
-        {/* Config fields */}
         {def?.configFields.map(field => (
           <Field key={field.key} label={field.label} required={field.required}>
             {field.type === 'select' ? (
@@ -86,7 +78,7 @@ export default function NodePanel({ node, onChange, onDelete, onClose, credentia
             ) : field.type === 'boolean' ? (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={!!cfg[field.key]} onChange={e => setCfg(p => ({ ...p, [field.key]: e.target.checked }))} style={{ width: 'auto' }} />
-                <span style={{ color: 'var(--text2)', fontSize: 12 }}>Enabled</span>
+                <span style={{ color: 'var(--text2)', fontSize: 12 }}>Enable</span>
               </label>
             ) : field.type === 'number' ? (
               <input type="number" value={cfg[field.key] ?? ''} placeholder={field.placeholder} onChange={e => setCfg(p => ({ ...p, [field.key]: Number(e.target.value) }))} />
@@ -107,7 +99,6 @@ export default function NodePanel({ node, onChange, onDelete, onClose, credentia
           </Field>
         ))}
 
-        {/* Retry */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: retryEnabled ? 10 : 0 }}>
             <input type="checkbox" checked={retryEnabled} onChange={e => setRetryEnabled(e.target.checked)} style={{ width: 'auto' }} />
@@ -121,12 +112,11 @@ export default function NodePanel({ node, onChange, onDelete, onClose, credentia
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-        <button onClick={save} style={{ flex: 1, padding: '8px 0', background: 'var(--accent)', color: '#fff', borderRadius: 7, fontWeight: 600, fontSize: 13 }}>
-          Save
+      <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+        <button onClick={save} style={{ flex: 1, padding: '9px 0', background: 'var(--accent)', color: '#fff', borderRadius: 7, fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer' }}>
+          Save Node
         </button>
-        <button onClick={onDelete} style={{ width: 36, height: 36, background: 'rgba(239,68,68,0.1)', color: 'var(--red)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={onDelete} style={{ width: 38, height: 38, background: 'rgba(239,68,68,0.1)', color: 'var(--red)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         </button>
       </div>
@@ -137,7 +127,7 @@ export default function NodePanel({ node, onChange, onDelete, onClose, credentia
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>
         {label}{required && <span style={{ color: 'var(--red)', marginLeft: 2 }}>*</span>}
       </label>
       {children}

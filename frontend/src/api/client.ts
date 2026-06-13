@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '/api' })
+export const BASE_URL = 'http://localhost:8000'
+
+const http = axios.create({ baseURL: BASE_URL + '/api' })
 
 http.interceptors.request.use(cfg => {
   const token = localStorage.getItem('token')
@@ -8,18 +10,14 @@ http.interceptors.request.use(cfg => {
   return cfg
 })
 
-http.interceptors.response.use(
-  r => r,
-  err => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-    }
-    return Promise.reject(err)
+http.interceptors.response.use(r => r, err => {
+  if (err.response?.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/'
   }
-)
+  return Promise.reject(err)
+})
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (email: string, password: string) =>
     http.post('/auth/register', { email, password }).then(r => r.data),
@@ -28,7 +26,6 @@ export const authApi = {
   me: () => http.get('/auth/me').then(r => r.data),
 }
 
-// ── Workflows ─────────────────────────────────────────────────────────────────
 export const workflowsApi = {
   list: () => http.get('/workflows').then(r => r.data),
   create: (data: any) => http.post('/workflows', data).then(r => r.data),
@@ -41,7 +38,6 @@ export const workflowsApi = {
     http.post(`/workflows/${id}/execute`, triggerData || {}).then(r => r.data),
 }
 
-// ── Executions ────────────────────────────────────────────────────────────────
 export const executionsApi = {
   list: (workflowId?: string) =>
     http.get('/executions', { params: workflowId ? { workflow_id: workflowId } : {} }).then(r => r.data),
@@ -49,7 +45,6 @@ export const executionsApi = {
   cancel: (id: string) => http.post(`/executions/${id}/cancel`).then(r => r.data),
 }
 
-// ── Credentials ───────────────────────────────────────────────────────────────
 export const credentialsApi = {
   list: (provider?: string) =>
     http.get('/credentials', { params: provider ? { provider } : {} }).then(r => r.data),
@@ -59,12 +54,10 @@ export const credentialsApi = {
   delete: (id: string) => http.delete(`/oauth/credentials/${id}`),
 }
 
-// ── Providers ─────────────────────────────────────────────────────────────────
 export const providersApi = {
   list: () => http.get('/providers').then(r => r.data),
 }
 
-// ── Triggers ──────────────────────────────────────────────────────────────────
 export const triggersApi = {
   list: (workflowId?: string) =>
     http.get('/triggers', { params: workflowId ? { workflow_id: workflowId } : {} }).then(r => r.data),
@@ -72,7 +65,6 @@ export const triggersApi = {
   delete: (id: string) => http.delete(`/triggers/${id}`),
 }
 
-// ── Schedules ─────────────────────────────────────────────────────────────────
 export const schedulesApi = {
   list: (workflowId?: string) =>
     http.get('/schedules', { params: workflowId ? { workflow_id: workflowId } : {} }).then(r => r.data),
@@ -81,7 +73,6 @@ export const schedulesApi = {
   toggle: (id: string) => http.patch(`/schedules/${id}/toggle`).then(r => r.data),
 }
 
-// ── Node types ────────────────────────────────────────────────────────────────
 export const nodeTypesApi = {
   list: () => http.get('/node-types').then(r => r.data),
 }

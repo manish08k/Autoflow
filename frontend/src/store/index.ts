@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type { Workflow, Credential, Execution } from '../types'
 
+type Page = 'workflows' | 'credentials' | 'executions'
+
 interface AppState {
   user: any | null
   setUser: (u: any) => void
@@ -12,10 +14,8 @@ interface AppState {
   setCredentials: (c: Credential[]) => void
   executions: Execution[]
   setExecutions: (e: Execution[]) => void
-  sidebarOpen: boolean
-  setSidebarOpen: (v: boolean) => void
-  rightPanel: 'triggers' | 'executions' | 'credentials' | 'node' | null
-  setRightPanel: (p: AppState['rightPanel']) => void
+  page: Page
+  setPage: (p: Page) => void
   selectedNodeId: string | null
   setSelectedNodeId: (id: string | null) => void
 }
@@ -31,10 +31,8 @@ export const useStore = create<AppState>(set => ({
   setCredentials: credentials => set({ credentials }),
   executions: [],
   setExecutions: executions => set({ executions }),
-  sidebarOpen: true,
-  setSidebarOpen: sidebarOpen => set({ sidebarOpen }),
-  rightPanel: null,
-  setRightPanel: rightPanel => set({ rightPanel }),
+  page: 'workflows',
+  setPage: page => set({ page }),
   selectedNodeId: null,
   setSelectedNodeId: selectedNodeId => set({ selectedNodeId }),
 }))

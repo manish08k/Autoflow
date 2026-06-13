@@ -16,7 +16,6 @@
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
     "lucide-react": "^0.378.0",
-    "clsx": "^2.1.0",
     "dagre": "^0.8.5"
   },
   "devDependencies": {
