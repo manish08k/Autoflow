@@ -1,9 +1,10 @@
 """JWT authentication middleware."""
-import uuid
-from datetime import datetime, timedelta
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -17,8 +18,37 @@ from storage.models import User
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24h
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 bearer_scheme = HTTPBearer(auto_error=False)
+
+# ── In-process login rate limiter ────────────────────────────────────────────
+# Keyed by IP. Tracks (attempt_count, window_start).
+# For multi-replica deployments swap this dict for a Redis-backed counter.
+_login_attempts: dict[str, tuple[int, float]] = defaultdict(lambda: (0, 0.0))
+_LOGIN_MAX_ATTEMPTS = 10
+_LOGIN_WINDOW_SECONDS = 60
+
+
+def check_login_rate_limit(request: Request) -> None:
+    ip = request.client.host if request.client else "unknown"
+    count, window_start = _login_attempts[ip]
+    now = time.monotonic()
+    if now - window_start > _LOGIN_WINDOW_SECONDS:
+        _login_attempts[ip] = (1, now)
+        return
+    count += 1
+    _login_attempts[ip] = (count, window_start)
+    if count > _LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please wait a minute.",
+        )
+
+
+def reset_login_rate_limit(request: Request) -> None:
+    """Call on successful login to clear the counter."""
+    ip = request.client.host if request.client else "unknown"
+    _login_attempts.pop(ip, None)
 
 
 def hash_password(password: str) -> str:
@@ -30,8 +60,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: str, email: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": user_id, "email": email, "exp": expire, "iat": datetime.utcnow()}
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": user_id, "email": email, "exp": expire, "iat": now}
     return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -63,17 +94,18 @@ async def get_current_user(
 
 async def get_current_user_flexible(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-    token: Optional[str] = Query(default=None),
+    oauth_token: Optional[str] = Cookie(default=None, alias="oauth_token"),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """
-    Same as get_current_user, but also accepts the JWT as a `?token=` query
-    parameter. Needed for endpoints reached via a top-level browser
-    navigation (window.location.href = ...) — such navigations can't set an
-    Authorization header, so the SPA passes the token in the URL instead.
+    Accepts JWT from Authorization header (primary) or a short-lived
+    HttpOnly cookie named `oauth_token` (used only during the OAuth
+    redirect dance — the cookie is set by /oauth/connect and consumed
+    once the SPA reads it via /api/auth/me, then cleared).
+    No longer accepts the token as a URL query parameter.
     """
     if credentials:
         return await _user_from_token(credentials.credentials, db)
-    if token:
-        return await _user_from_token(token, db)
+    if oauth_token:
+        return await _user_from_token(oauth_token, db)
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")

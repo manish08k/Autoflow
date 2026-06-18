@@ -31,6 +31,13 @@ def _now():
 # ─────────────────────────────────────────────────────────────────────────────
 #  Users
 # ─────────────────────────────────────────────────────────────────────────────
+class OrgRole(str, enum.Enum):
+    owner = "owner"
+    admin = "admin"
+    editor = "editor"
+    viewer = "viewer"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -40,11 +47,14 @@ class User(Base):
     google_id = Column(String(255), unique=True, nullable=True)  # Google "sub" claim, for OAuth sign-in
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+    org_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    role = Column(Enum(OrgRole), default=OrgRole.viewer, nullable=True)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     credentials = relationship("OAuthCredential", back_populates="user", cascade="all, delete-orphan")
     workflows = relationship("Workflow", back_populates="owner", cascade="all, delete-orphan")
+    organization = relationship("Organization", back_populates="members")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,18 +127,26 @@ class Workflow(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     owner_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    org_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(Enum(WorkflowStatus), default=WorkflowStatus.inactive)
     definition = Column(JSON, nullable=False, default=dict)   # nodes + edges
     settings = Column(JSON, default=dict)                     # timeout, retries, etc.
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     owner = relationship("User", back_populates="workflows")
+    organization = relationship("Organization", back_populates="workflows")
     executions = relationship("Execution", back_populates="workflow", cascade="all, delete-orphan")
     triggers = relationship("Trigger", back_populates="workflow", cascade="all, delete-orphan")
     schedules = relationship("Schedule", back_populates="workflow", cascade="all, delete-orphan")
+    versions = relationship("WorkflowVersion", back_populates="workflow", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_workflow_org", "org_id"),
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,6 +258,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    org_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True)
     user_id = Column(UUID(as_uuid=False), nullable=True)
     action = Column(String(128), nullable=False)
     resource_type = Column(String(64), nullable=True)
@@ -251,4 +270,122 @@ class AuditLog(Base):
     __table_args__ = (
         Index("ix_audit_user", "user_id"),
         Index("ix_audit_created", "created_at"),
+        Index("ix_audit_org", "org_id"),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Organizations  (multi-tenancy)
+# ─────────────────────────────────────────────────────────────────────────────
+class OrgPlan(str, enum.Enum):
+    free = "free"
+    starter = "starter"
+    pro = "pro"
+    enterprise = "enterprise"
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(255), unique=True, nullable=False)
+    plan = Column(Enum(OrgPlan), default=OrgPlan.free)
+    max_workflows = Column(Integer, default=5)
+    max_executions_per_day = Column(Integer, default=100)
+    settings = Column(JSON, default=dict)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    members = relationship("User", back_populates="organization")
+    workflows = relationship("Workflow", back_populates="organization")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Workflow Versions  (workflow versioning / rollback)
+# ─────────────────────────────────────────────────────────────────────────────
+class WorkflowVersion(Base):
+    __tablename__ = "workflow_versions"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    workflow_id = Column(UUID(as_uuid=False), ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    definition = Column(JSON, nullable=False, default=dict)
+    settings = Column(JSON, default=dict)
+    change_summary = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=False), nullable=True)
+    created_at = Column(DateTime, default=_now)
+
+    workflow = relationship("Workflow", back_populates="versions")
+
+    __table_args__ = (
+        Index("ix_wfversion_workflow", "workflow_id", "version"),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Dead Letter Queue  (executions/nodes that exhausted retries)
+# ─────────────────────────────────────────────────────────────────────────────
+class DLQStatus(str, enum.Enum):
+    pending = "pending"
+    replaying = "replaying"
+    resolved = "resolved"
+    abandoned = "abandoned"
+
+
+class DeadLetterItem(Base):
+    __tablename__ = "dead_letter_queue"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    org_id = Column(UUID(as_uuid=False), nullable=True)
+    workflow_id = Column(UUID(as_uuid=False), nullable=True)
+    execution_id = Column(UUID(as_uuid=False), nullable=True)
+    node_id = Column(String(128), nullable=True)
+    task_name = Column(String(255), nullable=True)
+    payload = Column(JSON, default=dict)        # original task args/kwargs
+    error = Column(Text, nullable=True)
+    error_stack = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    status = Column(Enum(DLQStatus), default=DLQStatus.pending)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_dlq_org_status", "org_id", "status"),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Marketplace  (shared workflow templates / node packs)
+# ─────────────────────────────────────────────────────────────────────────────
+class MarketplaceItemType(str, enum.Enum):
+    workflow = "workflow"
+    template = "template"
+    node = "node"
+
+
+class MarketplaceItem(Base):
+    __tablename__ = "marketplace_items"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    org_id = Column(UUID(as_uuid=False), nullable=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(255), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(128), nullable=True)
+    tags = Column(JSON, default=list)
+    item_type = Column(Enum(MarketplaceItemType), nullable=False)
+    content = Column(JSON, default=dict)
+    downloads = Column(Integer, default=0)
+    rating = Column(Integer, default=0)        # sum of ratings (avg = rating / rating_count)
+    rating_count = Column(Integer, default=0)
+    is_published = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_marketplace_published", "is_published", "category"),
     )

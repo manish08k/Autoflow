@@ -136,7 +136,12 @@ async def update_workflow(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    from core.versioning import snapshot_version
+
     workflow = await _get_owned_workflow(workflow_id, user.id, db)
+    if body.definition is not None:
+        # Snapshot the pre-edit state so it can be rolled back to.
+        await snapshot_version(db, workflow, user.id, change_summary="Edited via API")
     if body.name is not None:
         workflow.name = body.name
     if body.description is not None:

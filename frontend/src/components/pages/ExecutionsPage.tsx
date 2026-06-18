@@ -51,7 +51,7 @@ export default function ExecutionsPage() {
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
           {['', 'running', 'success', 'failed', 'queued', 'cancelled'].map(s => (
-            <button key={s} onClick={() => setFilter(s)} style={{ padding: '7px 14px', background: 'transparent', color: filter === s ? 'var(--accent)' : 'var(--text3)', borderBottom: `2px solid ${filter === s ? 'var(--accent)' : 'transparent'}`, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: 'none', borderBottom: filter === s ? '2px solid var(--accent)' : '2px solid transparent', textTransform: s ? 'capitalize' : 'none' }}>
+            <button key={s} onClick={() => setFilter(s)} style={{ padding: '7px 14px', background: 'transparent', color: filter === s ? 'var(--accent)' : 'var(--text3)', fontSize: 12, fontWeight: 500, cursor: 'pointer', border: 'none', borderBottom: filter === s ? '2px solid var(--accent)' : '2px solid transparent', textTransform: s ? 'capitalize' : 'none' }}>
               {s || 'All'}
             </button>
           ))}

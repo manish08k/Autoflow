@@ -69,8 +69,35 @@ def _run_async(coro):
     return loop.run_until_complete(coro)
 
 
+from celery import Task
+
+
+class WorkflowTask(Task):
+    """Custom task class so we can hook final-failure (retries exhausted) into the DLQ."""
+
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        # Called once, after the LAST retry attempt fails (or autoretry is exhausted).
+        execution_id = args[0] if len(args) > 0 else kwargs.get("execution_id")
+        workflow_definition = args[1] if len(args) > 1 else kwargs.get("workflow_definition", {})
+        trigger_data = args[2] if len(args) > 2 else kwargs.get("trigger_data", {})
+
+        from core.dlq import push_to_dlq
+        _run_async(push_to_dlq(
+            execution_id=execution_id,
+            workflow_id=workflow_definition.get("id") if isinstance(workflow_definition, dict) else None,
+            org_id=kwargs.get("org_id"),
+            task_name=self.name,
+            payload={
+                "workflow_definition": workflow_definition,
+                "trigger_data": trigger_data,
+            },
+            error=exc,
+        ))
+
+
 @celery_app.task(
     name="workers.tasks.run_workflow_task",
+    base=WorkflowTask,
     bind=True,
     max_retries=3,
     default_retry_delay=10,

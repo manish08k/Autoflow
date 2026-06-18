@@ -86,6 +86,8 @@ class Settings(BaseSettings):
     # ── Monitoring ────────────────────────────────────────────────────
     PROMETHEUS_ENABLED: bool = True
     LOG_LEVEL: str = "INFO"
+    OTEL_ENABLED: bool = True
+    OTEL_EXPORTER_ENDPOINT: str = "http://otel-collector:4318"
 
     # ── Derived helpers ───────────────────────────────────────────────
     @property

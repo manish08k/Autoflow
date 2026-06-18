@@ -34,6 +34,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # ─── One-shot migration container ────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://autoflow:${POSTGRES_PASSWORD:-autoflow_secret}@postgres:5432/autoflow
+      APP_SECRET_KEY: ${APP_SECRET_KEY}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   # ─── API Server ───────────────────────────────────────────────────────────────
   api:
     build:
@@ -77,6 +92,8 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_EXPORTER_ENDPOINT: http://otel-collector:4318
     ports:
       - "8000:8000"
     depends_on:
@@ -84,6 +101,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # ─── Celery Worker (workflow execution) ───────────────────────────────────────
   worker:
@@ -130,6 +149,8 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_EXPORTER_ENDPOINT: http://otel-collector:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -187,6 +208,59 @@ services:
     depends_on:
       - api
 
+  # ─── OpenTelemetry Collector ───────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.98.0
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/otel-collector.yml:/etc/otel/config.yml
+    command: ["--config=/etc/otel/config.yml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+
+  # ─── Tempo (traces) ───────────────────────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.4.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./monitoring/tempo.yml:/etc/tempo.yml
+      - tempo_data:/tmp/tempo
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-autoflow}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - tempo
+
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:

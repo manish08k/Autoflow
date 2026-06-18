@@ -7,10 +7,12 @@ from fastapi.middleware.gzip import GZipMiddleware
 from prometheus_client import make_asgi_app
 
 from core.config import settings
+from core.telemetry import instrument_app
 from storage.database import engine
 from storage.models import Base
 from schedules.manager import start_scheduler, stop_scheduler
 from api.routes import oauth, workflows, executions, credentials, webhooks, triggers, schedules
+from api.routes import orgs, versions, dlq, marketplace
 from api.routes.auth import router as auth_router
 
 import integrations.core.nodes
@@ -65,14 +67,20 @@ if settings.PROMETHEUS_ENABLED:
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
+instrument_app(app)
+
 app.include_router(auth_router)
 app.include_router(oauth.router,       prefix="/oauth",           tags=["OAuth"])
 app.include_router(credentials.router, prefix="/api/credentials", tags=["Credentials"])
 app.include_router(workflows.router,   prefix="/api/workflows",   tags=["Workflows"])
+app.include_router(versions.router,    prefix="/api/workflows",   tags=["Workflow Versioning"])
 app.include_router(executions.router,  prefix="/api/executions",  tags=["Executions"])
 app.include_router(triggers.router,    prefix="/api/triggers",    tags=["Triggers"])
 app.include_router(schedules.router,   prefix="/api/schedules",   tags=["Schedules"])
 app.include_router(webhooks.router,    prefix="/webhooks",        tags=["Webhooks"])
+app.include_router(orgs.router,        prefix="/api/orgs",        tags=["Organizations"])
+app.include_router(dlq.router,         prefix="/api/dlq",         tags=["Dead Letter Queue"])
+app.include_router(marketplace.router, prefix="/api/marketplace", tags=["Marketplace"])
 
 
 @app.get("/health", tags=["Health"])
