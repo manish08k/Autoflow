@@ -38,6 +38,9 @@ async def http_request(config: dict, input_data: dict, credential_id: str, db) -
     if not url:
         raise ValueError("http.request: 'url' is required")
 
+    from core.ssrf_guard import assert_safe_url, SSRFSafeTransport
+    assert_safe_url(url)
+
     headers = dict(config.get("headers") or input_data.get("headers") or {})
     params = config.get("params") or input_data.get("params") or {}
     body = config.get("body") or input_data.get("body")
@@ -55,7 +58,11 @@ async def http_request(config: dict, input_data: dict, credential_id: str, db) -
             ).decode()
             headers["Authorization"] = f"Basic {creds}"
 
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        follow_redirects=follow_redirects,
+        transport=SSRFSafeTransport(),
+    ) as client:
         kwargs: dict = {"headers": headers, "params": params}
         if isinstance(body, dict):
             kwargs["json"] = body
@@ -347,22 +354,9 @@ async def core_error_handler(config: dict, input_data: dict, credential_id: str,
 
 @register_node("core.run_code")
 async def core_run_code(config: dict, input_data: dict, credential_id: str, db) -> dict:
+    from core.sandbox import run_sandboxed
     code = config.get("code", "")
-    safe_builtins = {
-        "len": len, "str": str, "int": int, "float": float, "list": list,
-        "dict": dict, "bool": bool, "range": range, "enumerate": enumerate,
-        "zip": zip, "map": map, "filter": filter, "sorted": sorted,
-        "sum": sum, "min": min, "max": max, "abs": abs, "round": round,
-        "isinstance": isinstance, "type": type, "print": print, "json": json,
-        "datetime": datetime,
-    }
-    namespace = {"input": input_data, "__builtins__": safe_builtins}
-    try:
-        exec(code, namespace)  # noqa: S102
-    except Exception as exc:
-        raise RuntimeError(f"run_code error: {exc}") from exc
-    output = namespace.get("output", input_data)
-    return output if isinstance(output, dict) else {"output": output}
+    return await run_sandboxed(code, input_data)
 
 
 # ─── Email ────────────────────────────────────────────────────────────────────

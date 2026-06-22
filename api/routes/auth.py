@@ -56,14 +56,14 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    check_login_rate_limit(request)
+    await check_login_rate_limit(request)
     result = await db.execute(select(User).where(User.email == body.email, User.is_active == True))
     user = result.scalar_one_or_none()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token(user.id, user.email)
-    reset_login_rate_limit(request)
+    await reset_login_rate_limit(request)
     return {"access_token": token, "token_type": "bearer", "user_id": user.id}
 
 

@@ -8,6 +8,7 @@ from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -21,34 +22,32 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24h
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 bearer_scheme = HTTPBearer(auto_error=False)
 
-# ── In-process login rate limiter ────────────────────────────────────────────
-# Keyed by IP. Tracks (attempt_count, window_start).
-# For multi-replica deployments swap this dict for a Redis-backed counter.
-_login_attempts: dict[str, tuple[int, float]] = defaultdict(lambda: (0, 0.0))
+# ── Redis-backed login rate limiter ──────────────────────────────────────────
+# Shared across all API replicas/pods, survives restarts.
+_redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
 _LOGIN_MAX_ATTEMPTS = 10
 _LOGIN_WINDOW_SECONDS = 60
 
 
-def check_login_rate_limit(request: Request) -> None:
+async def check_login_rate_limit(request: Request) -> None:
     ip = request.client.host if request.client else "unknown"
-    count, window_start = _login_attempts[ip]
-    now = time.monotonic()
-    if now - window_start > _LOGIN_WINDOW_SECONDS:
-        _login_attempts[ip] = (1, now)
-        return
-    count += 1
-    _login_attempts[ip] = (count, window_start)
+    key = f"login_attempts:{ip}"
+    count = await _redis.incr(key)
+    if count == 1:
+        await _redis.expire(key, _LOGIN_WINDOW_SECONDS)
     if count > _LOGIN_MAX_ATTEMPTS:
+        ttl = await _redis.ttl(key)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Please wait a minute.",
+            headers={"Retry-After": str(max(ttl, 1))},
         )
 
 
-def reset_login_rate_limit(request: Request) -> None:
+async def reset_login_rate_limit(request: Request) -> None:
     """Call on successful login to clear the counter."""
     ip = request.client.host if request.client else "unknown"
-    _login_attempts.pop(ip, None)
+    await _redis.delete(f"login_attempts:{ip}")
 
 
 def hash_password(password: str) -> str:
